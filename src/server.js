@@ -57,6 +57,55 @@ function createServer(router, config) {
         });
       }
 
+      // Handle batch requests (array of requests)
+      if (Array.isArray(req.body)) {
+        console.log(`Processing batch request with ${req.body.length} requests`);
+        const results = await Promise.all(
+          req.body.map(async (request) => {
+            try {
+              // Validate each request
+              if (!request.jsonrpc) {
+                return {
+                  jsonrpc: '2.0',
+                  error: {
+                    code: -32600,
+                    message: 'Invalid Request: missing jsonrpc field'
+                  },
+                  id: request.id || null
+                };
+              }
+
+              if (!request.method) {
+                return {
+                  jsonrpc: '2.0',
+                  error: {
+                    code: -32600,
+                    message: 'Invalid Request: missing method field'
+                  },
+                  id: request.id || null
+                };
+              }
+
+              // Route the request
+              return await router.routeRequest(request);
+            } catch (error) {
+              console.error('Batch request item failed:', error.message);
+              return {
+                jsonrpc: '2.0',
+                error: {
+                  code: -32603,
+                  message: `Internal error: ${error.message}`
+                },
+                id: request?.id || null
+              };
+            }
+          })
+        );
+
+        return res.status(200).json(results);
+      }
+
+      // Single request (not an array)
       // Validate JSON-RPC format
       if (!req.body.jsonrpc) {
         console.error('Missing jsonrpc field. Received:', JSON.stringify(req.body));
