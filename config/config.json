@@ -1,0 +1,27 @@
+{
+  "server": {
+    "port": 8545,
+    "host": "0.0.0.0"
+  },
+  "endpoints": [
+    "https://eth.drpc.org",
+    "https://ethereum.publicnode.com",
+    "https://rpc.mevblocker.io"
+  ],
+  "rateLimit": {
+    "detectionThreshold": 0.5,
+    "minCooldownMs": 60000,
+    "maxCooldownMs": 300000,
+    "backoffMultiplier": 2,
+    "historyWindowSize": 20
+  },
+  "worker": {
+    "requestTimeout": 30000,
+    "maxQueueSize": 1000,
+    "healthCheckInterval": 30000
+  },
+  "database": {
+    "path": "./data/statistics.db",
+    "enableWAL": true
+  }
+}

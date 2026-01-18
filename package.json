@@ -1,0 +1,21 @@
+{
+  "name": "eth-rpc-distributor",
+  "version": "1.0.0",
+  "description": "Ethereum RPC request distributor with adaptive rate limiting",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "keywords": ["ethereum", "rpc", "proxy", "rate-limiting"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.2",
+    "sql.js": "^1.10.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
