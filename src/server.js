@@ -9,7 +9,11 @@ function createServer(router, config) {
   const app = express();
 
   // Parse JSON bodies (with increased limit for large RPC requests)
-  app.use(express.json({ limit: '10mb' }));
+  // Accept both application/json and text/plain (some RPC clients use text/plain)
+  app.use(express.json({
+    limit: '10mb',
+    type: ['application/json', 'text/plain']
+  }));
 
   // Request logging middleware
   app.use(requestLogger);
@@ -39,20 +43,35 @@ function createServer(router, config) {
   // Main RPC proxy endpoint - accepts all Ethereum JSON-RPC methods
   app.post('/', async (req, res) => {
     try {
+      // Debug: log raw body if parsing failed
+      if (!req.body || typeof req.body !== 'object') {
+        console.error('Body parsing failed. Content-Type:', req.headers['content-type']);
+        console.error('Raw body:', req.body);
+        return res.status(200).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32700,
+            message: 'Parse error'
+          },
+          id: null
+        });
+      }
+
       // Validate JSON-RPC format
-      if (!req.body || !req.body.jsonrpc) {
-        return res.status(400).json({
+      if (!req.body.jsonrpc) {
+        console.error('Missing jsonrpc field. Received:', JSON.stringify(req.body));
+        return res.status(200).json({
           jsonrpc: '2.0',
           error: {
             code: -32600,
             message: 'Invalid Request: missing jsonrpc field'
           },
-          id: req.body?.id || null
+          id: req.body.id || null
         });
       }
 
       if (!req.body.method) {
-        return res.status(400).json({
+        return res.status(200).json({
           jsonrpc: '2.0',
           error: {
             code: -32600,
@@ -66,12 +85,12 @@ function createServer(router, config) {
       const result = await router.routeRequest(req.body);
 
       // Forward the complete response from the RPC endpoint
-      res.json(result);
+      res.status(200).json(result);
 
     } catch (error) {
       console.error('Request failed:', error.message);
 
-      res.json({
+      res.status(200).json({
         jsonrpc: '2.0',
         error: {
           code: -32603,
