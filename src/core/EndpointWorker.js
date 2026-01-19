@@ -271,6 +271,7 @@ class EndpointWorker {
 
     // Known temporary error codes
     const temporaryErrorCodes = [
+      14,      // GRPC Context cancellation
       19,      // Temporary internal error
       -32000,  // Server error (often temporary)
       -32603,  // Internal error (often temporary)
@@ -293,7 +294,9 @@ class EndpointWorker {
       'network',
       'try again',
       'overloaded',
-      'capacity'
+      'capacity',
+      'grpc',
+      'cancel'
     ];
 
     return temporaryKeywords.some(keyword => message.includes(keyword));

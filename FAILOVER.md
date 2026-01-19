@@ -18,6 +18,7 @@ Added intelligent error detection and automatic failover:
 The system now identifies temporary/retryable errors by:
 
 **Error Codes:**
+- `14` - GRPC Context cancellation
 - `19` - Temporary internal error
 - `-32000` - Server error (often temporary)
 - `-32603` - Internal error (often temporary)
@@ -33,6 +34,8 @@ The system now identifies temporary/retryable errors by:
 - "network"
 - "overloaded"
 - "capacity"
+- "grpc"
+- "cancel"
 
 ### 2. Automatic Failover
 
@@ -68,12 +71,12 @@ Added `isTemporaryError()` method to detect retryable errors:
 ```javascript
 isTemporaryError(rpcError) {
   // Check error code
-  const temporaryErrorCodes = [19, -32000, -32603, 429, 503];
+  const temporaryErrorCodes = [14, 19, -32000, -32603, 429, 503];
   if (temporaryErrorCodes.includes(rpcError.code)) return true;
 
   // Check error message
   const message = (rpcError.message || '').toLowerCase();
-  const keywords = ['temporary', 'retry', 'timeout', 'unavailable', ...];
+  const keywords = ['temporary', 'retry', 'timeout', 'unavailable', 'grpc', 'cancel', ...];
   return keywords.some(keyword => message.includes(keyword));
 }
 ```
