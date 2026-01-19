@@ -21,30 +21,47 @@ class RequestRouter {
 
     let attempts = 0;
     const maxRetries = this.workerPool.getAllWorkers().length * 2; // Try each worker up to 2 times
+    const triedWorkers = new Set();
+    let lastError = null;
 
     while (true) {
       attempts++;
 
-      // Get available workers
+      // Get available workers that we haven't tried yet (or try all if we've tried all)
       const availableWorkers = this.workerPool.getAvailableWorkers();
+      const untriedWorkers = availableWorkers.filter(w => !triedWorkers.has(w.url));
+      const workersToTry = untriedWorkers.length > 0 ? untriedWorkers : availableWorkers;
 
-      if (availableWorkers.length > 0) {
+      if (workersToTry.length > 0) {
         // Select least loaded worker
-        const worker = this.selectWorker(availableWorkers);
+        const worker = this.selectWorker(workersToTry);
 
-        console.log(`[Req ${requestId}] Attempting with ${worker.url} (queue: ${worker.getQueueLength()})`);
+        console.log(`[Req ${requestId}] Attempting with ${worker.url} (queue: ${worker.getQueueLength()}, attempt ${attempts})`);
 
         try {
           const result = await worker.queueRequest(rpcRequest);
           console.log(`[Req ${requestId}] Success with ${worker.url}`);
           return result;
         } catch (error) {
-          console.log(`[Req ${requestId}] Failed with ${worker.url}: ${error.message}`);
+          lastError = error;
+          triedWorkers.add(worker.url);
 
-          // If we've tried all workers multiple times, fail
-          if (attempts >= maxRetries) {
-            console.error(`[Req ${requestId}] All workers failed after ${attempts} attempts`);
-            throw new Error(`All RPC endpoints failed: ${error.message}`);
+          // Check if this is a temporary error that should trigger retry
+          if (error.code === 'TEMPORARY_ERROR') {
+            console.log(`[Req ${requestId}] Temporary error from ${worker.url}, trying next endpoint`);
+          } else {
+            console.log(`[Req ${requestId}] Failed with ${worker.url}: ${error.message}`);
+          }
+
+          // If we've tried all available workers, check if we should give up
+          if (triedWorkers.size >= availableWorkers.length && attempts >= maxRetries) {
+            console.error(`[Req ${requestId}] All ${availableWorkers.length} workers failed after ${attempts} attempts`);
+            throw new Error(`All RPC endpoints failed: ${lastError?.message || 'Unknown error'}`);
+          }
+
+          // Reset tried workers if we've tried all available ones
+          if (triedWorkers.size >= availableWorkers.length) {
+            triedWorkers.clear();
           }
 
           // Otherwise continue to next iteration to try another worker

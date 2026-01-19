@@ -93,7 +93,28 @@ class EndpointWorker {
           continue;
         }
 
-        // Success
+        // Check if response contains a JSON-RPC error
+        if (response.data && response.data.error) {
+          const rpcError = response.data.error;
+
+          // Check if it's a temporary/retryable error
+          if (this.isTemporaryError(rpcError)) {
+            console.log(`${this.url} - Temporary error (code ${rpcError.code}): ${rpcError.message}`);
+            this.recordFailure(item.request.method, responseTime, new Error(rpcError.message));
+
+            // Throw error to trigger failover to another endpoint
+            const error = new Error(`Temporary error from ${this.url}: ${rpcError.message}`);
+            error.code = 'TEMPORARY_ERROR';
+            error.rpcError = rpcError;
+            item.reject(error);
+            continue;
+          }
+
+          // Non-temporary RPC error - return to client
+          console.log(`${this.url} - RPC error (code ${rpcError.code}): ${rpcError.message}`);
+        }
+
+        // Success (or non-temporary error that should be returned to client)
         this.recordSuccess(item.request.method, responseTime);
         item.resolve(response.data);
 
@@ -237,6 +258,45 @@ class EndpointWorker {
       return Math.max(0, this.cooldownUntil - Date.now());
     }
     return 0;
+  }
+
+  /**
+   * Check if an RPC error is temporary and should trigger failover
+   */
+  isTemporaryError(rpcError) {
+    if (!rpcError) return false;
+
+    const code = rpcError.code;
+    const message = (rpcError.message || '').toLowerCase();
+
+    // Known temporary error codes
+    const temporaryErrorCodes = [
+      19,      // Temporary internal error
+      -32000,  // Server error (often temporary)
+      -32603,  // Internal error (often temporary)
+      429,     // Too many requests
+      503,     // Service unavailable
+    ];
+
+    if (temporaryErrorCodes.includes(code)) {
+      return true;
+    }
+
+    // Check message for temporary error keywords
+    const temporaryKeywords = [
+      'temporary',
+      'retry',
+      'timeout',
+      'timed out',
+      'unavailable',
+      'connection',
+      'network',
+      'try again',
+      'overloaded',
+      'capacity'
+    ];
+
+    return temporaryKeywords.some(keyword => message.includes(keyword));
   }
 
   /**

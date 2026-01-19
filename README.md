@@ -5,10 +5,12 @@ A Node.js/Express-based Ethereum RPC proxy that intelligently distributes reques
 ## Features
 
 - **Adaptive Rate Limiting**: Automatically detects and responds to rate limits using multiple heuristics
-- **Intelligent Failover**: Automatically routes requests to healthy endpoints when others are rate limited
+- **Intelligent Failover**: Automatically routes requests to healthy endpoints when others are rate limited or return temporary errors
+- **Temporary Error Recovery**: Detects temporary errors (code 19, timeouts, etc.) and automatically retries with other endpoints
 - **Connection Holding**: Holds client connections open rather than returning errors, transparently waiting for endpoint availability
 - **Single Worker Per Endpoint**: Prevents parallel requests that could trigger rate limits
 - **Persistent Statistics**: Tracks endpoint performance and rate limit patterns across restarts using SQLite
+- **Batch Request Support**: Handles JSON-RPC batch requests (used by ethers.js)
 - **Zero Downtime**: Graceful shutdown ensures in-flight requests complete before exit
 
 ## How It Works
@@ -320,6 +322,14 @@ JOIN endpoints e ON s.endpoint_id = e.id;
 
 ## Troubleshooting
 
+### Temporary errors from endpoints
+
+If you see errors like "Temporary internal error" (code 19) or similar:
+- The distributor automatically retries these with other endpoints
+- Check server logs to see failover attempts
+- If ALL endpoints return the same error, it will be passed to the client
+- Consider adding more endpoints to increase redundancy
+
 ### All endpoints showing as rate limited
 
 - Check that endpoints are reachable: `curl https://eth.drpc.org`
@@ -332,12 +342,21 @@ JOIN endpoints e ON s.endpoint_id = e.id;
 - Increase `requestTimeout` in config if seeing timeouts
 - Check endpoint health independently
 - Review `request_log` table for error patterns
+- Monitor for temporary error patterns in the logs
 
 ### Queue buildup
 
 - Check `/health` endpoint for queue lengths
 - Verify endpoints are responding
 - Consider adding more endpoints to `config.json`
+
+### ethers.js compatibility
+
+The distributor is fully compatible with ethers.js v6:
+- Supports JSON-RPC batch requests
+- Returns HTTP 200 for all responses (per JSON-RPC spec)
+- Accepts both `application/json` and `text/plain` content types
+- See `test-ethers.js` for examples
 
 ## Performance Considerations
 
